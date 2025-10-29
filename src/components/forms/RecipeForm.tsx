@@ -4,7 +4,7 @@ import { useFormState, useFormStatus } from 'react-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
 import { submitRecipeAction } from '@/lib/actions';
@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -21,12 +22,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Upload } from 'lucide-react';
+import Image from 'next/image';
 
 const recipeSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters long.'),
   ingredients: z.string().min(10, 'Please list at least one ingredient.'),
   instructions: z.string().min(20, 'Instructions must be at least 20 characters long.'),
+  image: z.instanceof(File).optional(),
 });
 
 function SubmitButton() {
@@ -42,6 +45,7 @@ function SubmitButton() {
 export function RecipeForm() {
   const { toast } = useToast();
   const [state, formAction] = useFormState<RecipeFormState, FormData>(submitRecipeAction, undefined);
+  const [preview, setPreview] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof recipeSchema>>({
     resolver: zodResolver(recipeSchema),
@@ -49,6 +53,7 @@ export function RecipeForm() {
       title: '',
       ingredients: '',
       instructions: '',
+      image: undefined,
     },
     // This allows us to show server-side errors on the form
     errors: state?.fieldErrors,
@@ -62,6 +67,7 @@ export function RecipeForm() {
           description: state.message,
         });
         form.reset();
+        setPreview(null);
       } else {
         toast({
           title: 'Oops!',
@@ -71,6 +77,18 @@ export function RecipeForm() {
       }
     }
   }, [state, toast, form]);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      form.setValue('image', file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   return (
     <Card>
@@ -86,6 +104,42 @@ export function RecipeForm() {
                   <FormControl>
                     <Input placeholder="e.g., Classic Lasagna" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="image"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Recipe Image</FormLabel>
+                  <FormControl>
+                    <div className="w-full">
+                      <label htmlFor="image-upload" className="cursor-pointer group">
+                        <div className="relative border-2 border-dashed border-border rounded-lg p-4 text-center hover:border-primary transition-colors">
+                          {preview ? (
+                            <Image src={preview} alt="Recipe image preview" width={500} height={375} className="mx-auto rounded-md object-cover aspect-4/3" />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center h-48 space-y-2 text-muted-foreground">
+                              <Upload className="w-8 h-8"/>
+                              <p>Click or drag to upload an image</p>
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                      <Input
+                        id="image-upload"
+                        type="file"
+                        className="sr-only"
+                        accept="image/png, image/jpeg, image/webp"
+                        onChange={handleImageChange}
+                      />
+                    </div>
+                  </FormControl>
+                  <FormDescription>
+                    Optional. If you don&apos;t provide one, AI will generate it for you!
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

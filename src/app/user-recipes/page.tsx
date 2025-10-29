@@ -27,12 +27,12 @@ async function UserRecipesGrid() {
     if (recipes.length === 0) {
         return (
             <div className="text-center border-2 border-dashed border-border rounded-xl py-20 px-4 mt-8">
-                <h2 className="font-headline text-2xl mb-2">¡Tu libro de recetas está vacío!</h2>
+                <h2 className="font-headline text-2xl mb-2">Your cookbook is empty!</h2>
                 <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                    ¿Por qué no eres el primero en compartir una receta? Tu creación podría aparecer aquí mismo.
+                    Why not be the first to share a recipe? Your creation could appear right here.
                 </p>
                 <Button asChild>
-                    <Link href="/submit">Envía tu primera receta</Link>
+                    <Link href="/submit">Submit Your First Recipe</Link>
                 </Button>
             </div>
         )
@@ -72,10 +72,10 @@ export default function UserRecipesPage() {
     <div className="container mx-auto px-4 py-8 md:py-12">
       <header className="text-center mb-12">
         <h1 className="font-headline text-4xl md:text-5xl font-bold text-primary">
-          Libro de Cocina de la Comunidad
+          Community Cookbook
         </h1>
         <p className="mt-4 text-lg text-muted-foreground">
-          Recetas deliciosas compartidas por otros amantes de la comida.
+          Delicious recipes shared by fellow food lovers.
         </p>
       </header>
       

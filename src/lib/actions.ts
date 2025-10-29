@@ -13,6 +13,7 @@ const recipeSchema = z.object({
   title: z.string().min(3, { message: 'Title must be at least 3 characters.' }),
   ingredients: z.string().min(10, { message: 'Please list at least one ingredient.' }),
   instructions: z.string().min(20, { message: 'Instructions are too short.' }),
+  image: z.instanceof(File).optional(),
 });
 
 const userRecipesPath = path.join(process.cwd(), 'src', 'data', 'user-recipes.json');
@@ -30,14 +31,24 @@ async function getUserRecipes(): Promise<UserRecipe[]> {
   }
 }
 
+async function fileToDataURI(file: File) {
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  return `data:${file.type};base64,${buffer.toString('base64')}`;
+}
+
 export async function submitRecipeAction(
   prevState: RecipeFormState,
   formData: FormData
 ): Promise<RecipeFormState> {
+
+  const imageFile = formData.get('image') as File | null;
+
   const validatedFields = recipeSchema.safeParse({
     title: formData.get('title'),
     ingredients: formData.get('ingredients'),
     instructions: formData.get('instructions'),
+    image: imageFile && imageFile.size > 0 ? imageFile : undefined,
   });
 
   if (!validatedFields.success) {
@@ -49,21 +60,29 @@ export async function submitRecipeAction(
     };
   }
 
-  const { title, ingredients, instructions } = validatedFields.data;
+  const { title, ingredients, instructions, image } = validatedFields.data;
 
   try {
-    // AI: Generate image for the recipe
-    const imageResult = await generateRecipeImage({
-      recipeName: title,
-      ingredients: ingredients,
-    });
+    let imageUrl: string;
+
+    if (image) {
+      imageUrl = await fileToDataURI(image);
+    } else {
+      // AI: Generate image for the recipe
+      const imageResult = await generateRecipeImage({
+        recipeName: title,
+        ingredients: ingredients,
+      });
+      imageUrl = imageResult.imageUrl;
+    }
+
 
     const newRecipe: UserRecipe = {
       id: crypto.randomUUID(),
       title,
       ingredients,
       instructions,
-      imageUrl: imageResult.imageUrl,
+      imageUrl,
       createdAt: new Date().toISOString(),
     };
 
@@ -73,6 +92,7 @@ export async function submitRecipeAction(
     await fs.writeFile(userRecipesPath, JSON.stringify(existingRecipes, null, 2));
     
     revalidatePath('/user-recipes');
+    revalidatePath(`/recipes/${newRecipe.id}`);
     
   } catch (error) {
     console.error('Failed to submit recipe:', error);
@@ -88,30 +108,56 @@ export async function submitRecipeAction(
   redirect('/user-recipes');
 }
 
-
 const recommendationSchema = z.object({
-  dietaryRestrictions: z.string().min(1, 'This field is required.'),
-  preferences: z.string().min(1, 'This field is required.'),
+  dietaryRestrictions: z.preprocess((val) => (val ? (val as string).split(',') : []), z.array(z.string()).optional()),
+  preferences: z.preprocess((val) => (val ? (val as string).split(',') : []), z.array(z.string()).optional()),
+  other: z.string().optional(),
 });
 
 export async function getRecommendationsAction(
     prevState: RecommendationFormState, 
     formData: FormData
 ): Promise<RecommendationFormState> {
+
     const validatedFields = recommendationSchema.safeParse({
         dietaryRestrictions: formData.get('dietaryRestrictions'),
         preferences: formData.get('preferences'),
+        other: formData.get('other'),
     });
 
     if (!validatedFields.success) {
         return {
-            error: 'Both fields are required. Please tell us about your tastes!',
+            error: 'Invalid form data. Please try again.',
+            timestamp: Date.now(),
+        };
+    }
+    
+    const { dietaryRestrictions, preferences, other } = validatedFields.data;
+    
+    const restrictionsText = dietaryRestrictions?.join(', ') || 'None';
+    let preferencesText = preferences?.join(', ') || '';
+
+    if (other) {
+        preferencesText = preferencesText ? `${preferencesText}, ${other}` : other;
+    }
+
+    if (!preferencesText) {
+        preferencesText = 'Any';
+    }
+
+
+    if (restrictionsText === 'None' && preferencesText === 'Any') {
+        return {
+            error: 'Please select at least one preference or dietary restriction.',
             timestamp: Date.now(),
         };
     }
     
     try {
-        const result = await getPersonalizedRecipes(validatedFields.data);
+        const result = await getPersonalizedRecipes({
+          dietaryRestrictions: restrictionsText,
+          preferences: preferencesText
+        });
         if (!result.recommendations || result.recommendations.length === 0) {
             return { error: "Couldn't generate recommendations. Please try different preferences.", timestamp: Date.now() };
         }

@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 const navLinks = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/submit', label: 'Submit Recipe', icon: PlusCircle },
-  { href: '/user-recipes', label: 'My Recipes', icon: User },
+  { href: '/user-recipes', label: 'Community Recipes', icon: User },
   { href: '/recommendations', label: 'AI Helper', icon: Sparkles },
 ];
 
